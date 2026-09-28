@@ -4,8 +4,8 @@ import httpx
 
 from a2wsgi import ASGIMiddleware
 
-from shorturl.api import create_app
-from shorturl.settings import Settings
+from clew.api import create_app
+from clew.settings import Settings
 
 
 def test_wsgi_adapter_creates_and_redirects(tmp_path):
@@ -23,7 +23,7 @@ def test_wsgi_adapter_creates_and_redirects(tmp_path):
 
 
 def test_wsgi_entrypoint_starts_loop_on_first_request(tmp_path, monkeypatch):
-    from shorturl import api, wsgi
+    from clew import api, wsgi
 
     monkeypatch.setattr(api, "app", create_app(Settings(database_path=tmp_path / "wsgi.sqlite3")))
     importlib.reload(wsgi)

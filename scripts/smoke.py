@@ -1,4 +1,4 @@
-"""Verify a deployed ShortURL instance through its public HTTP API."""
+"""Check a deployed Clew instance through its public HTTP API."""
 
 import argparse
 import json
@@ -38,15 +38,15 @@ def expect_status(result, expected: int) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Check a deployed ShortURL instance")
+    parser = argparse.ArgumentParser(description="Check a deployed Clew instance")
     parser.add_argument("base_url", help="Public origin, such as https://name.pythonanywhere.com")
     parser.add_argument(
-        "--destination", default="https://github.com/Cole-Godfrey/shorturl", help="URL to shorten"
+        "--destination", default="https://github.com/Cole-Godfrey/Clew", help="URL to shorten"
     )
     args = parser.parse_args()
-    key = os.getenv("SHORTURL_API_KEY")
+    key = os.getenv("CLEW_API_KEY") or os.getenv("SHORTURL_API_KEY")
     if not key:
-        raise SystemExit("Set SHORTURL_API_KEY in the environment")
+        raise SystemExit("Set CLEW_API_KEY in the environment")
     base_url = args.base_url.rstrip("/")
     try:
         origin = urlsplit(base_url)

@@ -6,9 +6,9 @@ import sqlite3
 from fastapi.testclient import TestClient
 import pytest
 
-from shorturl.api import create_app
-from shorturl.settings import Settings
-from shorturl.storage import SQLiteStore
+from clew.api import create_app
+from clew.settings import Settings
+from clew.storage import SQLiteStore
 
 
 @pytest.fixture
@@ -124,13 +124,13 @@ def test_code_collision_is_retried(tmp_path, monkeypatch):
     store = SQLiteStore(tmp_path / "links.sqlite3")
     store.initialize()
     codes = iter(["AAAAAAAAAA", "AAAAAAAAAA", "BBBBBBBBBB"])
-    monkeypatch.setattr("shorturl.storage.new_code", lambda: next(codes))
+    monkeypatch.setattr("clew.storage.new_code", lambda: next(codes))
     assert store.create_link("https://example.org/one")["code"] == "AAAAAAAAAA"
     assert store.create_link("https://example.org/two")["code"] == "BBBBBBBBBB"
 
 
 def test_exhausted_codes_return_service_unavailable(client, monkeypatch):
-    monkeypatch.setattr("shorturl.storage.new_code", lambda: "AAAAAAAAAA")
+    monkeypatch.setattr("clew.storage.new_code", lambda: "AAAAAAAAAA")
     create_link(client)
     response = client.post("/api/links", json={"url": "https://example.org/two"})
     assert response.status_code == 503
@@ -143,3 +143,25 @@ def test_exhausted_codes_return_service_unavailable(client, monkeypatch):
 def test_invalid_public_configuration_is_rejected(tmp_path, base_url):
     with pytest.raises(ValueError):
         Settings(database_path=tmp_path / "links.sqlite3", base_url=base_url)
+
+
+def test_renamed_environment_variables_override_existing_values(tmp_path, monkeypatch):
+    old_key = "old-api-key-with-at-least-32-characters"
+    new_key = "new-api-key-with-at-least-32-characters"
+    monkeypatch.setenv("SHORTURL_DATABASE_PATH", str(tmp_path / "old.sqlite3"))
+    monkeypatch.setenv("SHORTURL_BASE_URL", "https://old.example.org")
+    monkeypatch.setenv("SHORTURL_API_KEY", old_key)
+
+    old = Settings.from_environment()
+    assert old.database_path == tmp_path / "old.sqlite3"
+    assert old.base_url == "https://old.example.org"
+    assert old.api_key == old_key
+
+    monkeypatch.setenv("CLEW_DATABASE_PATH", str(tmp_path / "new.sqlite3"))
+    monkeypatch.setenv("CLEW_BASE_URL", "https://new.example.org")
+    monkeypatch.setenv("CLEW_API_KEY", new_key)
+
+    renamed = Settings.from_environment()
+    assert renamed.database_path == tmp_path / "new.sqlite3"
+    assert renamed.base_url == "https://new.example.org"
+    assert renamed.api_key == new_key

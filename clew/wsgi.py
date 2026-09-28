@@ -15,7 +15,7 @@ def application(environ, start_response):
     if _adapter is None:
         with _adapter_lock:
             if _adapter is None:
-                from shorturl.api import app
+                from clew.api import app
 
                 _adapter = ASGIMiddleware(app)
     return _adapter(environ, start_response)

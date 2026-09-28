@@ -8,8 +8,8 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
-from shorturl.settings import Settings
-from shorturl.storage import CodeExhaustedError, SQLiteStore
+from clew.settings import Settings
+from clew.storage import CodeExhaustedError, SQLiteStore
 
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_environment()
     store = SQLiteStore(settings.database_path)
     store.initialize()
-    app = FastAPI(title="ShortURL", version="0.1.0")
+    app = FastAPI(title="Clew", version="0.1.0")
 
     def authorize(x_api_key: str | None = Header(default=None)) -> None:
         if settings.api_key is not None and (

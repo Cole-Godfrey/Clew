@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [project]
-name = "shorturl"
+name = "clew"
 version = "0.1.0"
-description = "A small, persistent URL shortener API"
+description = "A URL shortener with persistent links and click counts"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.115,<1",
@@ -20,7 +20,7 @@ test = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["shorturl"]
+packages = ["clew"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
