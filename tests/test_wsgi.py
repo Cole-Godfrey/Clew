@@ -1,3 +1,5 @@
+import importlib
+
 import httpx
 
 from a2wsgi import ASGIMiddleware
@@ -18,3 +20,16 @@ def test_wsgi_adapter_creates_and_redirects(tmp_path):
         assert redirect.headers["location"] == "https://example.org/wsgi"
         stats = client.get(f"/api/links/{code}/stats")
         assert stats.json()["click_count"] == 1
+
+
+def test_wsgi_entrypoint_starts_loop_on_first_request(tmp_path, monkeypatch):
+    from shorturl import api, wsgi
+
+    monkeypatch.setattr(api, "app", create_app(Settings(database_path=tmp_path / "wsgi.sqlite3")))
+    importlib.reload(wsgi)
+    assert wsgi._adapter is None
+
+    transport = httpx.WSGITransport(app=wsgi.application)
+    with httpx.Client(transport=transport, base_url="http://localhost:8000") as client:
+        assert client.get("/healthz").json() == {"status": "ok"}
+    assert isinstance(wsgi._adapter, ASGIMiddleware)
