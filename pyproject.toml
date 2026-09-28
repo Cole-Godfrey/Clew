@@ -13,6 +13,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+pythonanywhere = ["a2wsgi>=1.10.10,<2"]
 test = [
     "httpx>=0.27,<1",
     "pytest>=8,<10",

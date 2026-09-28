@@ -22,4 +22,4 @@ jobs:
           version: "0.12.12"
           enable-cache: true
       - run: uv python install ${{ matrix.python-version }}
-      - run: uv run --locked --extra test pytest -q
+      - run: uv run --locked --all-extras pytest -q
