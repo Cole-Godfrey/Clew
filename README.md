@@ -16,10 +16,13 @@ You need Python 3.10 or newer and [uv](https://docs.astral.sh/uv/getting-started
 
 ```sh
 uv sync --locked --all-extras
+export CLEW_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 uv run uvicorn clew.api:app --reload
 ```
 
 Open `http://localhost:8000/docs` to try the API. The local database is `data/clew.sqlite3`. Run the tests with `uv run --locked --all-extras pytest -q`.
+
+For unauthenticated local development, unset `CLEW_API_KEY` and `SHORTURL_API_KEY`, then run `CLEW_ALLOW_UNAUTHENTICATED_LOCAL=true uv run uvicorn clew.api:app --host 127.0.0.1 --reload`. This setting only works with a localhost `CLEW_BASE_URL` and should not be used in a public deployment.
 
 ## API
 
@@ -36,6 +39,7 @@ Create a link with:
 ```sh
 curl -i -X POST http://localhost:8000/api/links \
   -H 'Content-Type: application/json' \
+  -H "X-API-Key: $CLEW_API_KEY" \
   -d '{"url":"https://example.org/article"}'
 ```
 
@@ -43,7 +47,7 @@ The response includes `code`, `url`, `short_url`, and `created_at`. The `Locatio
 
 ```sh
 curl -i http://localhost:8000/REPLACE_WITH_CODE
-curl http://localhost:8000/api/links/REPLACE_WITH_CODE/stats
+curl -H "X-API-Key: $CLEW_API_KEY" http://localhost:8000/api/links/REPLACE_WITH_CODE/stats
 ```
 
 Destinations must use HTTP or HTTPS and be at most 2,048 characters long. Clew rejects credentials, whitespace, and control characters in a destination. Errors are JSON: `401` for a missing or invalid API key, `404` for an unknown code, `422` for invalid input, and `503` for storage trouble or exhausted code attempts.
@@ -56,10 +60,11 @@ Run the included Docker image behind a proxy that handles TLS. Set these environ
 | --- | --- |
 | `CLEW_BASE_URL` | Public HTTPS origin, such as `https://go.example.com` |
 | `CLEW_API_KEY` | Secret of at least 32 characters for creating links and reading stats |
+| `CLEW_ALLOW_UNAUTHENTICATED_LOCAL` | Optional; set to `true` only for unauthenticated local development; defaults to `false` |
 | `CLEW_DATABASE_PATH` | SQLite file on a persistent writable volume; defaults to `/data/clew.sqlite3` in the image |
 | `PORT` | Listening port; defaults to `8000` |
 
-Generate an API key with `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'` and supply it as a deployment secret. Send it in the `X-API-Key` header for create and stats requests. Redirects are public. A public deployment requires HTTPS and an API key.
+Generate an API key with `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'` and supply it as a deployment secret. Send it in the `X-API-Key` header for create and stats requests. Redirects are public. Without a key, create and stats requests return `401` even when `CLEW_BASE_URL` is localhost. A public deployment requires HTTPS and an API key.
 
 ```sh
 docker build -t clew .
@@ -107,3 +112,7 @@ When updating a ShortURL installation, point `CLEW_DATABASE_PATH` at its existin
 ## Limits
 
 SQLite keeps deployment simple, but write throughput is limited and the service cannot run across multiple instances. That would require a shared database such as PostgreSQL. The WSGI adapter adds some overhead on PythonAnywhere. Clew retains total click counts but only the latest 20 timestamps per link. It has no user accounts, expiration, custom aliases, or abuse reporting. Keep the API key private and rotate it if it is exposed.
+
+## License
+
+Clew is licensed under the [MIT License](LICENSE).

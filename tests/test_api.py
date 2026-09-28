@@ -11,10 +11,13 @@ from clew.settings import Settings
 from clew.storage import SQLiteStore
 
 
+TEST_API_KEY = "this-is-a-test-api-key-with-32-characters"
+
+
 @pytest.fixture
 def client(tmp_path):
-    app = create_app(Settings(database_path=tmp_path / "links.sqlite3"))
-    with TestClient(app) as test_client:
+    app = create_app(Settings(database_path=tmp_path / "links.sqlite3", api_key=TEST_API_KEY))
+    with TestClient(app, headers={"X-API-Key": TEST_API_KEY}) as test_client:
         yield test_client
 
 
@@ -46,7 +49,10 @@ def test_create_redirect_and_analytics_survive_restart(client, tmp_path):
     assert head.headers["location"] == link["url"]
     assert client.get(f"/api/links/{link['code']}/stats").json()["click_count"] == 1
 
-    restarted = TestClient(create_app(Settings(database_path=tmp_path / "links.sqlite3")))
+    restarted = TestClient(
+        create_app(Settings(database_path=tmp_path / "links.sqlite3", api_key=TEST_API_KEY)),
+        headers={"X-API-Key": TEST_API_KEY},
+    )
     with restarted:
         assert restarted.get(f"/{link['code']}", follow_redirects=False).status_code == 302
         assert restarted.get(f"/api/links/{link['code']}/stats").json()["click_count"] == 2
@@ -88,7 +94,7 @@ def test_health_and_authentication(tmp_path):
     settings = Settings(
         database_path=tmp_path / "links.sqlite3",
         base_url="https://sho.rt",
-        api_key="this-is-a-test-api-key-with-32-characters",
+        api_key=TEST_API_KEY,
     )
     with TestClient(create_app(settings)) as client:
         assert client.get("/healthz").json() == {"status": "ok"}
@@ -104,6 +110,69 @@ def test_health_and_authentication(tmp_path):
         assert client.get(f"/api/links/{link['code']}/stats").status_code == 401
         assert client.get(f"/api/links/{link['code']}/stats", headers=headers).status_code == 200
         assert client.get(f"/{link['code']}", follow_redirects=False).status_code == 302
+
+
+def test_local_default_requires_api_key(tmp_path):
+    settings = Settings(database_path=tmp_path / "links.sqlite3")
+    store = SQLiteStore(settings.database_path)
+    store.initialize()
+    code = store.create_link("https://example.org")["code"]
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/healthz").status_code == 200
+        assert client.post("/api/links", json={"url": "https://example.org"}).status_code == 401
+        assert client.get(f"/api/links/{code}/stats").status_code == 401
+        assert client.get(f"/{code}", follow_redirects=False).status_code == 302
+
+
+def test_local_development_setting_allows_unauthenticated_requests(tmp_path, monkeypatch):
+    monkeypatch.delenv("CLEW_API_KEY", raising=False)
+    monkeypatch.delenv("SHORTURL_API_KEY", raising=False)
+    monkeypatch.delenv("CLEW_BASE_URL", raising=False)
+    monkeypatch.delenv("SHORTURL_BASE_URL", raising=False)
+    monkeypatch.setenv("CLEW_DATABASE_PATH", str(tmp_path / "links.sqlite3"))
+    monkeypatch.setenv("CLEW_ALLOW_UNAUTHENTICATED_LOCAL", "true")
+
+    settings = Settings.from_environment()
+    assert settings.allow_unauthenticated_local
+    with TestClient(create_app(settings)) as client:
+        link = create_link(client)
+        assert client.get(f"/api/links/{link['code']}/stats").status_code == 200
+
+
+@pytest.mark.parametrize("value", ["false", "invalid"])
+def test_local_development_setting_does_not_bypass_auth_unless_true(tmp_path, monkeypatch, value):
+    monkeypatch.delenv("CLEW_API_KEY", raising=False)
+    monkeypatch.delenv("SHORTURL_API_KEY", raising=False)
+    monkeypatch.delenv("CLEW_BASE_URL", raising=False)
+    monkeypatch.delenv("SHORTURL_BASE_URL", raising=False)
+    monkeypatch.setenv("CLEW_DATABASE_PATH", str(tmp_path / "links.sqlite3"))
+    monkeypatch.setenv("CLEW_ALLOW_UNAUTHENTICATED_LOCAL", value)
+
+    if value == "invalid":
+        with pytest.raises(ValueError, match="CLEW_ALLOW_UNAUTHENTICATED_LOCAL"):
+            Settings.from_environment()
+    else:
+        with TestClient(create_app(Settings.from_environment())) as client:
+            assert client.post("/api/links", json={"url": "https://example.org"}).status_code == 401
+
+
+def test_local_development_setting_rejects_public_origin(tmp_path):
+    with pytest.raises(ValueError, match="CLEW_ALLOW_UNAUTHENTICATED_LOCAL"):
+        Settings(
+            database_path=tmp_path / "links.sqlite3",
+            base_url="https://sho.rt",
+            allow_unauthenticated_local=True,
+        )
+
+
+def test_local_development_setting_does_not_disable_configured_api_key(tmp_path):
+    settings = Settings(
+        database_path=tmp_path / "links.sqlite3",
+        api_key=TEST_API_KEY,
+        allow_unauthenticated_local=True,
+    )
+    with TestClient(create_app(settings)) as client:
+        assert client.post("/api/links", json={"url": "https://example.org"}).status_code == 401
 
 
 def test_simultaneous_clicks_are_counted(tmp_path):
@@ -142,10 +211,21 @@ def test_exhausted_codes_return_service_unavailable(client, monkeypatch):
 )
 def test_invalid_public_configuration_is_rejected(tmp_path, base_url):
     with pytest.raises(ValueError):
-        Settings(database_path=tmp_path / "links.sqlite3", base_url=base_url)
+        Settings(database_path=tmp_path / "links.sqlite3", base_url=base_url, api_key=TEST_API_KEY)
+
+
+def test_public_origin_requires_api_key(tmp_path):
+    with pytest.raises(ValueError, match="CLEW_API_KEY"):
+        Settings(database_path=tmp_path / "links.sqlite3", base_url="https://sho.rt")
+
+
+def test_short_local_api_key_is_rejected():
+    with pytest.raises(ValueError, match="CLEW_API_KEY"):
+        Settings(api_key="short")
 
 
 def test_renamed_environment_variables_override_existing_values(tmp_path, monkeypatch):
+    monkeypatch.delenv("CLEW_ALLOW_UNAUTHENTICATED_LOCAL", raising=False)
     old_key = "old-api-key-with-at-least-32-characters"
     new_key = "new-api-key-with-at-least-32-characters"
     monkeypatch.setenv("SHORTURL_DATABASE_PATH", str(tmp_path / "old.sqlite3"))

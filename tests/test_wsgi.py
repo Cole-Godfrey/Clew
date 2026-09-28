@@ -9,9 +9,14 @@ from clew.settings import Settings
 
 
 def test_wsgi_adapter_creates_and_redirects(tmp_path):
-    application = ASGIMiddleware(create_app(Settings(database_path=tmp_path / "links.sqlite3")))
+    key = "this-is-a-test-api-key-with-32-characters"
+    application = ASGIMiddleware(
+        create_app(Settings(database_path=tmp_path / "links.sqlite3", api_key=key))
+    )
     transport = httpx.WSGITransport(app=application)
-    with httpx.Client(transport=transport, base_url="http://localhost:8000") as client:
+    with httpx.Client(
+        transport=transport, base_url="http://localhost:8000", headers={"X-API-Key": key}
+    ) as client:
         created = client.post("/api/links", json={"url": "https://example.org/wsgi"})
         assert created.status_code == 201
         code = created.json()["code"]

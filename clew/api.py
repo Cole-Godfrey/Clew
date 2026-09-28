@@ -44,8 +44,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Clew", version="0.1.0")
 
     def authorize(x_api_key: str | None = Header(default=None)) -> None:
-        if settings.api_key is not None and (
-            x_api_key is None
+        if settings.allow_unauthenticated_local and settings.api_key is None:
+            return
+        if (
+            settings.api_key is None
+            or x_api_key is None
             or not hmac.compare_digest(x_api_key.encode("utf-8"), settings.api_key.encode("utf-8"))
         ):
             raise HTTPException(status_code=401, detail="Invalid API key")

@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "clew"
 version = "0.1.0"
 description = "A URL shortener with persistent links and click counts"
+license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.115,<1",

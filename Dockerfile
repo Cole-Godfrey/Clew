@@ -4,7 +4,7 @@ WORKDIR /app
 ENV UV_NO_CACHE=1 UV_PYTHON_DOWNLOADS=never
 RUN python -m pip install --no-cache-dir uv==0.12.12
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock LICENSE ./
 COPY clew ./clew
 RUN uv sync --locked --no-dev --no-editable
 
