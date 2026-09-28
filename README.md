@@ -2,6 +2,8 @@
 
 A small URL shortener with a JSON API, SQLite persistence, and click analytics.
 
+Live API documentation: [colegodfrey.pythonanywhere.com/docs](https://colegodfrey.pythonanywhere.com/docs).
+
 ## Architecture
 
 FastAPI handles requests and validates URLs. `shorturl.storage.SQLiteStore` owns SQL and opens a fresh SQLite connection for each operation. Links have random 10-character base62 codes. A unique database key handles the unlikely collision; creation retries with a new code. Redirects use HTTP 302 with `Cache-Control: no-store` so visits can be counted. Each visit increments the count and records its UTC timestamp in one transaction. The 20 latest timestamps remain in the database; the all-time count remains accurate.
@@ -96,9 +98,9 @@ with open("/home/YOUR_USERNAME/shorturl-data/api-key") as secret_file:
 from shorturl.wsgi import application
 ```
 
-Reload the web app. Use the contents of `~/shorturl-data/api-key` as the `X-API-Key` header when creating links or reading stats. Keep that file outside the repository and back up `~/shorturl-data`.
+Reload the web app. Use the contents of `~/shorturl-data/api-key` as the `X-API-Key` header when creating links or reading stats. Keep that file outside the repository and back up `~/shorturl-data`. Free PythonAnywhere sites require renewal every month from the Web tab.
 
-From a trusted shell with `SHORTURL_API_KEY` set, run `python scripts/smoke.py https://YOUR_USERNAME.pythonanywhere.com` to verify the live service. It prints a working short URL after checking health, redirect, and analytics.
+From the Bash console, run `SHORTURL_API_KEY="$(cat ~/shorturl-data/api-key)" python scripts/smoke.py https://YOUR_USERNAME.pythonanywhere.com` to verify the live service. It prints a working short URL after checking health, redirect, and analytics. The WSGI adapter starts its event loop on the first request so prefork servers such as uWSGI can run it in the worker.
 
 ## Tradeoffs and rebuild guide
 

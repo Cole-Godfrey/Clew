@@ -1,24 +1,35 @@
 """Verify a deployed ShortURL instance through its public HTTP API."""
 
 import argparse
-import http.client
 import json
 import os
+from urllib.error import HTTPError
 from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
 
 
 def request(base_url: str, method: str, path: str, key: str | None = None, body: dict | None = None):
-    origin = urlsplit(base_url)
-    connection_type = http.client.HTTPSConnection if origin.scheme == "https" else http.client.HTTPConnection
-    connection = connection_type(origin.hostname, origin.port, timeout=15)
     headers = {"Content-Type": "application/json"} if body is not None else {}
     if key is not None:
         headers["X-API-Key"] = key
-    connection.request(method, path, json.dumps(body) if body is not None else None, headers)
-    response = connection.getresponse()
-    result = (response.status, {name.lower(): value for name, value in response.getheaders()}, response.read())
-    connection.close()
-    return result
+    payload = json.dumps(body).encode() if body is not None else None
+    outgoing = Request(f"{base_url}{path}", data=payload, headers=headers, method=method)
+    opener = build_opener(NoRedirect())
+    try:
+        incoming = opener.open(outgoing, timeout=15)
+    except HTTPError as error:
+        incoming = error
+    with incoming:
+        return (
+            incoming.status,
+            {name.lower(): value for name, value in incoming.headers.items()},
+            incoming.read(),
+        )
 
 
 def expect_status(result, expected: int) -> None:
