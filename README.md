@@ -98,6 +98,8 @@ from shorturl.wsgi import application
 
 Reload the web app. Use the contents of `~/shorturl-data/api-key` as the `X-API-Key` header when creating links or reading stats. Keep that file outside the repository and back up `~/shorturl-data`.
 
+From a trusted shell with `SHORTURL_API_KEY` set, run `python scripts/smoke.py https://YOUR_USERNAME.pythonanywhere.com` to verify the live service. It prints a working short URL after checking health, redirect, and analytics.
+
 ## Tradeoffs and rebuild guide
 
 The single-file database keeps setup and operations simple, but it limits write throughput and prevents horizontal scaling. A multi-instance deployment would need a shared database such as PostgreSQL. The WSGI adapter adds a small amount of overhead on PythonAnywhere. All-time counts are retained, while only 20 event timestamps per link are retained. There is no user account system, expiration, custom alias, or abuse reporting. Keep the API key private and rotate it if exposed.
